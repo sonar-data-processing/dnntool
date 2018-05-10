@@ -138,19 +138,6 @@ def preprare_data(im_path, target_size):
 
     id, rrbox_original, rrbox_resized = load_annotations(im_path, (factor, factor))
 
-    # src_c = src.copy()/255.0
-    # resized_c = resized.copy()/255.0
-    # dst_c = dst.copy()/255.0
-    #
-    # draw_rrbox(src_c, rrbox_original)
-    # draw_rrbox(resized_c, rrbox_resized)
-    # draw_rrbox(dst_c, rrbox_resized)
-    #
-    # cv2.imshow("src", src_c)
-    # cv2.imshow("dst", dst_c)
-    # cv2.imshow("resized", resized_c)
-    # cv2.waitKey()
-
     y = build_data(id, rrbox_resized)
     x = np.expand_dims(dst, axis=0)
 
@@ -160,7 +147,7 @@ def preprare_data(im_path, target_size):
 def load_data(path, target_size=(224,224)):
     "It receives a path containg the dataset"
 
-    N = 1500
+    N = 10
     im_list = []
     label_list = []
     for root, dirs, files in os.walk(path):
@@ -169,6 +156,7 @@ def load_data(path, target_size=(224,224)):
             continue
 
         files = fnmatch.filter(files, '*.png')
+        files = shuffle(files)
 
         for name in files[:N]:
             im_path = os.path.join(root, name)
@@ -194,6 +182,9 @@ def load_data(path, target_size=(224,224)):
     y_train = np.reshape(y_train, (len(y_train), 4))
     y_val = np.reshape(y_val, (len(y_val), 4))
     y_test = np.reshape(y_test, (len(y_test), 4))
+
+    print X_train.shape
+    print y_train.shape
 
     return X_train, y_train, X_val, y_val, X_test, y_test
 

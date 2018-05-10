@@ -1,8 +1,9 @@
+#!/usr/bin/python
 import os
 import time
 import fnmatch
 import numpy as np
-import keras_rbbox_util as util
+import rbbox_util as util
 import keras
 import cv2
 import cv2.cv as cv
@@ -22,7 +23,7 @@ def show_results(im, x, preds, target_size):
     out = util.draw_rrbox_padding(mat, np.array([cx, cy, w, h, t], dtype=np.float32))
 
     cv2.imshow("result", out)
-    cv2.waitKey();
+    cv2.waitKey(200);
 
 
 image_input = KL.Input(shape=(224, 224, 3))
@@ -34,7 +35,7 @@ out = KL.Dense(4, init='normal', name='out_bboxes_poses')(x)
 
 model = Model(input=model.input, output=out)
 
-model.load_weights("rbbox-weights.hdf5")
+model.load_weights("/home/gustavoneves/sources/dnntool/weights/rbbox-weights.hdf5")
 
 # model.summary()
 

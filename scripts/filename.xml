@@ -1,0 +1,27 @@
+<?xml version="1.0" ?>
+<annotation verified="yes">
+  <folder>images</folder>
+  <filename>ssiv_bahia-sample-3093.png</filename>
+  <path>/home/gustavoneves/data/gemini/dataset/voc-format/original/images/ssiv_bahia-sample-3093.png</path>
+  <source>
+    <database>Unknown</database>
+  </source>
+  <size>
+    <width>730</width>
+    <height>422</height>
+    <depth>3</depth>
+  </size>
+  <segmented>0</segmented>
+  <object>
+    <name>ssiv_bahia</name>
+    <pose>Unspecified</pose>
+    <truncated>0</truncated>
+    <difficult>0</difficult>
+    <bndbox>
+      <xmin>335.0</xmin>
+      <ymin>143.0</ymin>
+      <xmax>483.0</xmax>
+      <ymax>271.0</ymax>
+    </bndbox>
+  </object>
+</annotation>
