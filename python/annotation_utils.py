@@ -14,8 +14,8 @@ def load_yolo_annotation(filepath):
         id, cx, cy, w, h = txtfile.readline().rstrip().split(' ')
         return int(id), np.array([cx, cy, w, h], dtype=np.float32)
 
-def load_yolo_rot_annotation(filepath):
-    annotation_path = get_annotation_path(filepath, "-rot.txt")
+def load_yolo_rot_annotation(filepath, suffix="-rot.txt"):
+    annotation_path = get_annotation_path(filepath, suffix)
     with open(annotation_path, 'r') as txtfile:
         id, cx, cy, w, h, t = txtfile.readline().rstrip().split(' ')
         return int(id), np.array([cx, cy, w, h, t], dtype=np.float32)
@@ -30,7 +30,7 @@ def box2vert(box):
     h2 = box[3] * 0.5
     return np.array(np.round([box[0]-w2, box[1]-h2, box[0]+w2, box[1]+h2]), dtype=np.int32)
 
-def rbox2vert(rbox, size):
+def rbox2vert(rbox, size=(1, 1)):
     scale_factor = np.amax(size)
     return rbox2vert(rbox) * scale_factor
 
