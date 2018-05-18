@@ -1,91 +1,63 @@
 #!/usr/bin/python
 import os
 import time
+import argparse
 import fnmatch
 import numpy as np
-import rbbox_util as util
 import keras
 import cv2
-import cv2.cv as cv
+import drawing
+import rbbox
+import keras.backend as KB
 import keras.layers as KL
 from keras.models import Model
 from keras.preprocessing import image
+from annotation_utils import *
 
-def show_results(im, x, preds, target_size):
-    factor = util.scale_factor(im.size, target_size)
-    cx = im.size[0]/2.0
-    cy = im.size[1]/2.0
-    w = preds[0][1] / factor
-    h = preds[0][2] / factor
-    t = preds[0][3]
+parser = argparse.ArgumentParser(
+    description="Test rotated bounding box annotations")
 
-    mat = image.img_to_array(im)/255.0
-    out = util.draw_rrbox_padding(mat, np.array([cx, cy, w, h, t], dtype=np.float32))
+parser.add_argument(
+    "image_folder",
+    help="Folder containg the image dataset")
 
-    cv2.imshow("result", out)
-    cv2.waitKey(200);
+def _main_(args):
+    target_size = (224, 224)
 
+    model_rbbox_regr = rbbox.get_model_rbbox_regressor(target_size)
+    model_rbbox_regr.load_weights("/home/gustavoneves/sources/dnntool/weights/rbbox-gemini-final.h5")
+    model_rbbox_regr.compile(loss='mean_squared_error', optimizer='adam', metrics=['accuracy'])
 
-image_input = KL.Input(shape=(224, 224, 3))
-model = keras.applications.resnet50.ResNet50(include_top=False, weights='imagenet', input_tensor=image_input)
-x = KL.Flatten(name='flatten')(model.output)
-x = KL.Dense(1024, init='normal', activation='relu') (x)
-x = KL.Dense(1024, init='normal', activation='relu')(x)
-out = KL.Dense(4, init='normal', name='out_bboxes_poses')(x)
+    for root, dirs, files in os.walk(args.image_folder):
+        files = fnmatch.filter(files, '*.png')
+        files = sorted(files)
+        files = fnmatch.filter(files, '[!flip]*')
+        for name in files:
+            im_path = os.path.join(root, name)
+            print im_path
+            im = cv2.imread(im_path)
+            class_id, gt = get_rbbox_annotation(im_path)
 
-model = Model(input=model.input, output=out)
+            box = gt[:4]
+            rbox_gt = gt[4:]
 
-model.load_weights("/home/gustavoneves/sources/dnntool/weights/rbbox-weights.hdf5")
+            rbox = rbbox.predict(im, class_id, box, model_rbbox_regr, target_size=target_size, use_bbox=True)
+            rbox_gt[0:2] += box[0:2]
+            rbox_gt = rbox2vert(rbox_gt)
+            pts_gt = vert2points(rbox_gt)
 
-# model.summary()
+            rbox = rbox2vert(rbox)
+            pts = vert2points(rbox)
 
-model.compile(loss='mean_squared_error', optimizer='adam', metrics=['accuracy'])
+            drawing.points(im, pts_gt)
+            drawing.points(im, pts, colors=(0, 0, 255))
 
-n = 20000
-N = 300
-im_list = []
-for root, dirs, files in os.walk("/home/gustavoneves/data/gemini/dataset/bbox"):
+            cv2.rectangle(im,(box[0], box[1]),(box[2], box[3]),(0,255,0),3)
+            cv2.imshow("annotation", im)
 
-    if not ("jequitaia" in root):
-        continue
+            if cv2.waitKey(15) & 0xFF == ord('q'):
+                exit()
 
-    files = fnmatch.filter(files, '*.png')
-    for name in files[n:n+N]:
-        im_path = os.path.join(root, name)
-
-        # load image
-        im = image.load_img(im_path)
-
-        x, label = util.preprare_data(im_path, (224,224))
-        preds = model.predict(x)
-
-        show_results(im, x, preds, (224,224))
-
-
-        # # load image
-        # im = image.load_img(im_path)
-        #
-        # # resize image
-        # im_r = im.resize((224,224))
-        # # convert image to array
-        # x = image.img_to_array(im_r)
-        # # expand dimension to be (1, w, h, 3)
-        # x = np.expand_dims(x, axis=0)
-        # # load image ground truth
-        # rbbox = util.load_annotations(im_path, im.size, im_r.size)
-        #
-        # preds = model.predict(x)
-        # print "preds: ", preds, "annotation: ", rbbox
-        #
-        # fx = float(im.size[0]) / float(im_r.size[0])
-        # fy = float(im.size[1]) / float(im_r.size[1])
-        #
-        # pts1, cx1, cy1, w1, h1  = util.to_points(preds[0])
-        # canvas = util.draw_points_padding(image.img_to_array(im_r)/255.0, pts1, center=(int(cx1), int(cy1)))
-        # cv2.imshow('resized', canvas)
-        #
-        # pts2, cx2, cy2, w2, h2  = util.to_points(preds[0], (fx, fy))
-        # canvas = util.draw_points_padding(image.img_to_array(im)/255.0, pts2, center=(int(cx2), int(cy2)))
-        #
-        # cv2.imshow('original', canvas)
-        # cv2.waitKey()
+if __name__ == '__main__':
+    args = parser.parse_args()
+    _main_(args)

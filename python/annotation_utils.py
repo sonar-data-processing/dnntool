@@ -20,6 +20,11 @@ def load_yolo_rot_annotation(filepath, suffix="-rot.txt"):
         id, cx, cy, w, h, t = txtfile.readline().rstrip().split(' ')
         return int(id), np.array([cx, cy, w, h, t], dtype=np.float32)
 
+def get_rbbox_annotation(filepath, suffix=".txt"):
+    with open(get_annotation_path(filepath, suffix), 'r') as txtfile:
+        id, x1, y1, x2, y2, cx, cy, w, h, t = txtfile.readline().rstrip().split(' ')
+        return int(id), np.array([x1, y1, x2, y2, cx, cy, w, h, t], dtype=np.float32)
+
 def rescale_box(size, box):
     for i in range(len(box)):
         box[i] = box[i]*size[i%2]

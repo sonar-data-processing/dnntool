@@ -30,7 +30,7 @@ if __name__ == '__main__':
         for name in files:
             im_path = os.path.join(root, name)
             im = cv2.imread(im_path)
-            _, gt = _get_rbbox_annotation(im_path)
+            _, gt = get_rbbox_annotation(im_path)
             box = gt[:5]
             rbox = gt[4:]
             rbox[0:2] += box[0:2]

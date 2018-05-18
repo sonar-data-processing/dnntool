@@ -1,30 +1,36 @@
 import os
 import cv2
-import cv2.cv
 import imghdr
 import fnmatch
 import numpy as np
-from imgaug import augmenters as iaa
-from annotation_utils import *
+import keras
+import keras.backend as KB
+import keras.layers as KL
+from keras.preprocessing import image
+from keras.models import Model
 from keras.utils import Sequence
+from annotation_utils import *
 
-def prepare_input(src, target_size):
-    img_h, img_w, _ = src.shape
+
+def bbox_rescale(img, target_size):
+    img_h, img_w, _ = img.shape
     factor = _scale_factor((img_w, img_h), target_size)
 
     w = int(float(img_w) * factor)
     h = int(float(img_h) * factor)
 
-    # resize image to target size
-    resized = cv2.resize(src, (w, h))
-
+    resized = cv2.resize(img, (w, h), interpolation=cv2.INTER_CUBIC)
+    
     target_size = target_size + (3,)
     x = np.zeros(target_size, dtype=np.float32)
     x[0:h, 0:w] = resized
+    return x
+
+def prepare_input(src, target_size):
+    x = bbox_rescale(src, target_size)
     return np.expand_dims(x, axis=0)
 
 def transform(rbox, origin, img_size, target_size):
-    factor = _scale_factor(img_size, target_size)
     cx = img_size[0]/2.0+origin[0]
     cy = img_size[1]/2.0+origin[1]
     w = rbox[0]
@@ -37,7 +43,6 @@ def load_data(path, N=-1):
     i = 0
     for root, dirs, files in os.walk(path):
         files = fnmatch.filter(files, '*.png')
-        print "Total files: ", len(files)
         files = sorted(files)
         for f in files[:N]:
             filepath = os.path.join(root, f)
@@ -46,22 +51,35 @@ def load_data(path, N=-1):
             item["obj"] = _parse_annotation(filepath)
             data += [item]
 
+
+    print "Total data: ", len(data)
     np.random.shuffle(data)
     train_valid_split = int(0.8*len(data))
     valid_data = data[train_valid_split:]
     train_data = data[:train_valid_split]
     return train_data, valid_data
 
+def _parse_obj(data):
+    id, x1, y1, x2, y2, cx, cy, w, h, t = data.astype(np.float32)
+    obj = {}
+    obj['id'] = id
+    obj['x1'] = x1
+    obj['y1'] = y1
+    obj['x2'] = x2
+    obj['y2'] = y2
+    obj['cx'] = cx
+    obj['cy'] = cy
+    obj['w'] = w
+    obj['h'] = h
+    if (abs(t-180)<=5):
+        t = t-180
+    obj['t'] = t
+    return obj
+
+
 def _parse_rbbox_annotation_file(path):
     with open(path, 'r') as file:
-        id, cx, cy, w, h, t = file.readline().rstrip().split(' ')
-        obj = {}
-        obj['id'] = float(id)
-        obj['cx'] = float(cx)
-        obj['cy'] = float(cy)
-        obj['w'] = float(w)
-        obj['h'] = float(h)
-        obj['t'] = float(t)
+        obj = _parse_obj(np.array(file.readline().rstrip().split(' ')))
     return obj
 
 def _parse_annotation(imgpath):
@@ -73,72 +91,14 @@ def _scale_factor(src_sz, target_sz):
     return factor
 
 class BatchGenerator(Sequence):
-    def __init__(self, data, target_size=(224, 224), batch_size=32, shuffle=True):
+    def __init__(self, data, target_size=(224, 224), batch_size=32, shuffle=True, use_bbox=False):
         self.data = data
         self.batch_size = batch_size
         self.shuffle = shuffle
         self.target_size = target_size
-
-        ### augmentors by https://github.com/aleju/imgaug
-        sometimes = lambda aug: iaa.Sometimes(0.5, aug)
-
-        # Define our sequence of augmentation steps that will be applied to every image
-        # All augmenters with per_channel=0.5 will sample one value _per image_
-        # in 50% of all cases. In all other cases they will sample new values
-        # _per channel_.
-        self.aug_pipe = iaa.Sequential(
-            [
-                # apply the following augmenters to most images
-                #iaa.Fliplr(0.5), # horizontally flip 50% of all images
-                #iaa.Flipud(0.2), # vertically flip 20% of all images
-                #sometimes(iaa.Crop(percent=(0, 0.1))), # crop images by 0-10% of their height/width
-                sometimes(iaa.Affine(
-                    #scale={"x": (0.8, 1.2), "y": (0.8, 1.2)}, # scale images to 80-120% of their size, individually per axis
-                    #translate_percent={"x": (-0.2, 0.2), "y": (-0.2, 0.2)}, # translate by -20 to +20 percent (per axis)
-                    #rotate=(-5, 5), # rotate by -45 to +45 degrees
-                    #shear=(-5, 5), # shear by -16 to +16 degrees
-                    #order=[0, 1], # use nearest neighbour or bilinear interpolation (fast)
-                    #cval=(0, 255), # if mode is constant, use a cval between 0 and 255
-                    #mode=ia.ALL # use any of scikit-image's warping modes (see 2nd image from the top for examples)
-                )),
-                # execute 0 to 5 of the following (less important) augmenters per image
-                # don't execute all of them, as that would often be way too strong
-                iaa.SomeOf((0, 5),
-                    [
-                        #sometimes(iaa.Superpixels(p_replace=(0, 1.0), n_segments=(20, 200))), # convert images into their superpixel representation
-                        iaa.OneOf([
-                            iaa.GaussianBlur((0, 3.0)), # blur images with a sigma between 0 and 3.0
-                            iaa.AverageBlur(k=(2, 7)), # blur image using local means with kernel sizes between 2 and 7
-                            iaa.MedianBlur(k=(3, 11)), # blur image using local medians with kernel sizes between 2 and 7
-                        ]),
-                        iaa.Sharpen(alpha=(0, 1.0), lightness=(0.75, 1.5)), # sharpen images
-                        #iaa.Emboss(alpha=(0, 1.0), strength=(0, 2.0)), # emboss images
-                        # search either for all edges or for directed edges
-                        #sometimes(iaa.OneOf([
-                        #    iaa.EdgeDetect(alpha=(0, 0.7)),
-                        #    iaa.DirectedEdgeDetect(alpha=(0, 0.7), direction=(0.0, 1.0)),
-                        #])),
-                        iaa.AdditiveGaussianNoise(loc=0, scale=(0.0, 0.05*255), per_channel=0.5), # add gaussian noise to images
-                        iaa.OneOf([
-                            iaa.Dropout((0.01, 0.1), per_channel=0.5), # randomly remove up to 10% of the pixels
-                            #iaa.CoarseDropout((0.03, 0.15), size_percent=(0.02, 0.05), per_channel=0.2),
-                        ]),
-                        #iaa.Invert(0.05, per_channel=True), # invert color channels
-                        iaa.Add((-10, 10), per_channel=0.5), # change brightness of images (by -10 to 10 of original value)
-                        iaa.Multiply((0.5, 1.5), per_channel=0.5), # change brightness of images (50-150% of original value)
-                        iaa.ContrastNormalization((0.5, 2.0), per_channel=0.5), # improve or worsen the contrast
-                        #iaa.Grayscale(alpha=(0.0, 1.0)),
-                        #sometimes(iaa.ElasticTransformation(alpha=(0.5, 3.5), sigma=0.25)), # move pixels locally around (with random strengths)
-                        #sometimes(iaa.PiecewiseAffine(scale=(0.01, 0.05))) # sometimes move parts of the image around
-                    ],
-                    random_order=True
-                )
-            ],
-            random_order=True
-        )
+        self.use_bbox = use_bbox
 
         if shuffle: np.random.shuffle(self.data)
-
 
     def __len__(self):
         return int(np.ceil(float(len(self.data))/self.batch_size))
@@ -152,35 +112,109 @@ class BatchGenerator(Sequence):
             l_bound = r_bound-self.batch_size
 
         target_w, target_h = self.target_size
-        X_batch = np.zeros((r_bound-l_bound, target_w, target_h, 3))
-        y_batch = np.zeros((r_bound-l_bound, 4))
+        x_batch = np.zeros((r_bound-l_bound, target_w, target_h, 3))
+        b_batch = np.zeros((r_bound-l_bound, 5))
+        y_batch = np.zeros((r_bound-l_bound, 3))
         idx = 0
         for item in self.data[l_bound:r_bound]:
-            X, y = self.__parse_item(item, self.target_size)
-            X_batch[idx] = X
+            x, b, y = self.parse_item(item, self.target_size)
+            x_batch[idx] = x
+            b_batch[idx] = b
             y_batch[idx] = y
             idx += 1
-        return X_batch, y_batch
+        return [x_batch, b_batch], y_batch
 
     def on_epoch_end(self):
         if self.shuffle: np.random.shuffle(self.data)
 
-    def __parse_item(self, item, target_size):
-        img = cv2.imread(item["img"])
-        img = self.aug_pipe.augment_image(img)
-        obj = item["obj"]
+    def __parse_bbox(self, obj):
+        return np.array([obj['x1'], obj['y1'], obj['x2'], obj['y2']], dtype=np.int32)
 
-        img_h, img_w, _ = img.shape
-        factor = _scale_factor((img_w, img_h), target_size)
+    def parse_item(self, item, target_size):
+        img = cv2.imread(item['img'])
+        img = img / 255.0
+        obj = item['obj']
+        class_id = int(obj['id'])
+        x1, y1, x2, y2 = self.__parse_bbox(obj)
+        input_image = None
+        if (self.use_bbox):
+            subimg = img[y1:y2,x1:x2]
+            input_image = bbox_rescale(subimg, target_size)
+        else:
+            input_image = bbox_rescale(img, target_size)
+        
+        box = np.array([class_id, x1, y1, x2, y2])
+        y = np.array([obj['w'], obj['h'], obj['t']], dtype=np.float32)
+        return input_image, box, y
 
-        w = int(float(img_w) * factor)
-        h = int(float(img_h) * factor)
+def get_model_rbbox_regressor(target_size=(224, 224)):
+    image_shape = target_size+(3,)
+    image_input = KL.Input(shape=image_shape)
 
-        resized = cv2.resize(img, (w, h))
+    resnet50 = keras.applications.resnet50.ResNet50(include_top=False, weights='imagenet', input_shape=image_shape)
+    box_input = KL.Input(shape=(5,))
 
-        target_size = target_size + (3,)
-        X = np.zeros(target_size, dtype=np.float32)
-        X[0:h, 0:w] = resized
+    x = KL.Flatten(name='flatten')(resnet50.output)
+    x = KL.concatenate([x, box_input])
+    x = KL.Dense(1024, init='normal', activation='relu') (x)
+    x = KL.Dropout(0.05)(x)
+    x = KL.Dense(1024, init='normal', activation='relu')(x)
+    x = KL.Dropout(0.05)(x)
+    x = KL.Dense(3, init='normal', name='out_bboxes_poses')(x)
 
-        y = np.array([obj["id"], obj["w"], obj["h"], obj["t"]], dtype=np.float32)
-        return X, y
+    model = Model(inputs=[resnet50.input, box_input], output=x)
+    return model
+
+def predict(img, class_id, box, model, target_size=(224, 224), use_bbox=False):
+    x1, y1, x2, y2 = np.array(box, dtype=np.int32)
+    img = img / 255.0
+
+    if use_bbox:
+        subimg = img[y1:y2,x1:x2]
+        input_image = prepare_input(subimg, target_size)
+    else:
+        input_image = prepare_input(img, target_size)
+
+    input_box = np.array([class_id, x1, y1, x2, y2], dtype=np.int32)
+    input_box = np.expand_dims(input_box, axis=0)
+
+    preds = model.predict([input_image, input_box])[0]
+    w, h = x2-x1, y2-y1
+
+    angle = preds[2]
+    if class_id == 1 and h < w/4 and angle >= 5 and angle <= 175:
+        preds[2] = 0
+
+    return transform(preds, (x1, y1), (w, h), target_size)
+
+def predict_rbboxes(model, boxes, img, target_size, use_bbox=False):
+    img_h, img_w, _ = img.shape
+    rboxes=[]
+    for box in boxes:
+        rbox = predict(
+            img, box.get_label(), box.get_rect(img_w, img_h), model,
+            target_size=target_size, use_bbox=use_bbox)
+        rboxes.append(rbox)
+    return np.array(rboxes)
+
+def get_result_filename(img_path, suffix="-result-resnet50"):
+    return get_annotation_path(img_path, suffix+".txt")
+
+def save_result(img_path, labels, boxes, rboxes, suffix="-result-resnet50"):
+    lines = []
+    for idx, l in enumerate(labels):
+        b = boxes[idx]
+        rb = rboxes[idx]
+        line = "{},{},{},{},{},{},{},{},{},{}\n".format(
+            l, 
+            b[0], b[1], b[2], b[3],
+            rb[0], rb[1], rb[2], rb[3], rb[4])
+        lines.append(line)
+    out_file = get_result_filename(img_path, suffix="-result-resnet50")
+    file = open(out_file, 'w')
+    file.writelines(lines)
+    file.close
+
+    
+
+    

@@ -4,12 +4,12 @@ import numpy as np
 import cv2
 import cv2.cv as cv
 
-def points(im, pts):
+def points(im, pts, colors=(255, 0, 0)):
     n = len(pts)
     for i in range(n):
         pt1 = tuple(np.round(pts[i%n]).astype(int))
         pt2 = tuple(np.round(pts[(i+1)%n]).astype(int))
-        cv2.line(im, pt1, pt2, (255,0,0), 5)
+        cv2.line(im, pt1, pt2, colors, 5)
 def bbox(im, bbox):
     bbox = bbox.astype(int)
     x1 = bbox[0]
