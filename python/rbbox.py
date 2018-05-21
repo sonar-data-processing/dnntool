@@ -6,6 +6,7 @@ import numpy as np
 import keras
 import keras.backend as KB
 import keras.layers as KL
+import csv
 from keras.preprocessing import image
 from keras.models import Model
 from keras.utils import Sequence
@@ -200,21 +201,33 @@ def predict_rbboxes(model, boxes, img, target_size, use_bbox=False):
 def get_result_filename(img_path, suffix="-result-resnet50"):
     return get_annotation_path(img_path, suffix+".txt")
 
-def save_result(img_path, labels, boxes, rboxes, suffix="-result-resnet50"):
+def save_result(img_path, labels, boxes, rboxes, scores, suffix="-result-resnet50"):
     lines = []
     for idx, l in enumerate(labels):
         b = boxes[idx]
         rb = rboxes[idx]
-        line = "{},{},{},{},{},{},{},{},{},{}\n".format(
-            l, 
+        line = "{},{},{},{},{},{},{},{},{},{},{}\n".format(
+            l,
             b[0], b[1], b[2], b[3],
-            rb[0], rb[1], rb[2], rb[3], rb[4])
+            rb[0], rb[1], rb[2], rb[3], rb[4],
+            scores[idx])
         lines.append(line)
-    out_file = get_result_filename(img_path, suffix="-result-resnet50")
+    out_file = get_result_filename(img_path, suffix=suffix)
     file = open(out_file, 'w')
     file.writelines(lines)
     file.close
 
-    
-
+def load_result(filepath):
+    ids = []
+    boxes = []
+    rboxes = []
+    scores = []
+    with open(filepath, 'r') as csvfile:
+        reader = csv.reader(csvfile)
+        for row in reader:
+            ids += [int(row[0])]
+            boxes += [np.array(row[1:5], dtype=np.float32)]
+            rboxes += [np.array(row[5:10], dtype=np.float32)]
+            scores += [float(row[10])]      
+    return ids, boxes, rboxes, scores
     
