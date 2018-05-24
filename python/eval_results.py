@@ -1,67 +1,94 @@
-#!/usr/bin/python
 import os
 import math
 import argparse
-import fnmatch
 import numpy as np
-import drawing
 import cv2
-import cv2.cv as cv
-import rbbox
-import annotation_utils
+import csv
+import matplotlib.pyplot as plt
+from sklearn.metrics import average_precision_score
+from sklearn.metrics import precision_recall_curve
 
 parser = argparse.ArgumentParser(
-    description="Evaluate the detection results")
+    description="Generate results")
 
 parser.add_argument(
-    "image_folder",
-    help="Folder containg the image dataset")
+    "csv_filepath",
+    help="CSV file contaning the results")
 
-parser.add_argument(
-    '--detector',
-    default='yolo',
-    choices=list(['yolo', 'faster_rcnn']),
-    help="Detector")
+def _load_results(filepath):
+    gt = []
+    res = []
+    iou = []
+    score = []
+    with open(filepath, 'r') as csvfile:
+        reader = csv.reader(csvfile)
+        for row in reader:
+            gt += [int(row[0])]
+            res += [int(row[1])]
+            iou += [float(row[2])]
+            score += [float(row[3])]
+    return gt, res, iou, score
 
+def _average_recall(gt, res, iou):
+    all_iou= sorted(iou)
+    num_pos = len(all_iou)
+    dx = 0.001
+  
+    overlap = np.arange(0, 1, dx)
+    overlap[-1]= 1
 
-yolo_labels = ["ssiv_bahia", "jequitaia", "balsa"]
+    N = len(overlap)
+    recall = np.zeros(N, dtype=np.float32)
+    for i in range(N):
+        recall[i] = (all_iou > overlap[i]).sum() / float(num_pos)
 
-def _get_suffix(detector):
-        return "-{}-result-resnet50".format(detector)
+    good_recall = recall[np.where(overlap > 0.5)]
+    AR = 2 * dx * np.trapz(good_recall)
+    return overlap, recall, AR
 
-def _get_ground_truth(img_path):
-    gt_id, gt = annotation_utils.get_rbbox_annotation(img_path)
-    gt_box = gt[:4]
-    gt_rbox = gt[4:]
-    gt_rbox[0:2] += gt_box[0:2]
-    return gt_id, gt_box, gt_rbox
+def _precision_recall(gt, res, iou, score):
+    N = len(gt)
+    y_true = np.zeros(N, dtype=int)
+    y_score = score
+
+    for i in range(N):
+        if gt[i] == res[i] and iou[i] >= 0.5:
+            y_true[i] = 1
+
+    ap = average_precision_score(y_true, y_score)
+
+    precision, recall, _ = precision_recall_curve(y_true, y_score)
+
+    return precision, recall, ap
+
+def _plot_precision_recall(gt, res, iou, score):
+    precision, recall, ap = _precision_recall(gt, res, iou, score)
+    plt.figure()
+    plt.step(recall, precision, color='b', alpha=0.2, where='post')
+    plt.fill_between(recall, precision, step='post', alpha=0.2, color='b')
+    plt.xlabel('Recall')
+    plt.ylabel('Precision')
+    plt.ylim([0.0, 1.05])
+    plt.xlim([0.0, 1.0])
+    plt.title('Precision-Recall curve: AP={0:0.5f}'.format(ap))
+
+def _plot_average_recall(gt, res, iou):
+    overlap, recall, AR = _average_recall(gt, res, iou)
+    plt.figure()
+    plt.step(overlap, recall, color='b', alpha=0.2, where='post')
+    plt.fill_between(overlap, recall, step='post', alpha=0.2, color='b')
+    plt.xlabel('IoU')
+    plt.ylabel('Recall')
+    plt.ylim([0.0, 1.05])
+    plt.xlim([0.0, 1.0])
+    plt.title('Recall-IoU curve: AR={0:0.5f}'.format(AR))
 
 
 def _main_(args):
-    suffix = _get_suffix(args.detector)
-    for root, dirs, files in os.walk(args.image_folder):
-        files = fnmatch.filter(files, '*.png')
-        files = sorted(files)
-
-        for name in files:
-            img_path = os.path.join(root, name)
-            img = cv2.imread(img_path)
-
-            gt_id, gt_box, gt_rbox = _get_ground_truth(img_path)
-
-            result_path = rbbox.get_result_filename(img_path, suffix=suffix)
-            ids, boxes, rboxes, scores = rbbox.load_result(result_path)
-
-            labels = [yolo_labels[id] for id in ids]
-           
-            drawing.boxes(img, boxes, labels, scores)
-            drawing.rboxes(img, rboxes)
-            drawing.rbox(img, gt_rbox, color=(0, 0, 255))
-
-            cv2.imshow("result", img)
-
-            if cv2.waitKey(50) & 0xFF == ord('q'):
-                exit()
+    gt, res, iou, score = _load_results(args.csv_filepath)
+    _plot_precision_recall(gt, res, iou, score)
+    _plot_average_recall(gt, res, iou)
+    plt.show()
 
 if __name__ == '__main__':
     args = parser.parse_args()

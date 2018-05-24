@@ -39,11 +39,16 @@ def rbox2vert(rbox, size=(1, 1)):
     scale_factor = np.amax(size)
     return rbox2vert(rbox) * scale_factor
 
+def rbox2points(rb):
+    verts = rbox2vert(rb)
+    pts = vert2points(verts)
+    return pts
+
 def rbox2vert(rbox):
     cx, cy, w, h, t = rbox
     angle = t*math.pi/180.0
-    cosine = math.cos(angle);
-    sine = math.sin(angle);
+    cosine = math.cos(angle)
+    sine = math.sin(angle)
 
     w2 = w * 0.5
     h2 = h * 0.5

@@ -2,7 +2,6 @@ import os
 import math
 import numpy as np
 import cv2
-import cv2.cv as cv
 import annotation_utils as au
 
 def points(im, pts, colors=(255, 0, 0)):
@@ -19,12 +18,9 @@ def bbox(im, bbox, color=(255, 0, 0)):
     x2 = bbox[2]
     y2 = bbox[3]
     cv2.rectangle(im, (x1, y1), (x2, y2), color, 5)
-
 def rbox(img, rb, color=(255, 0, 0)):
-    verts = au.rbox2vert(rb)
-    pts = au.vert2points(verts)
-    points(img, pts, color)
-
+    points(img, au.rbox2points(rb), color)
+    
 def boxes(image, boxes, labels, scores):
     image_h, _, _ = image.shape
     for i, box in enumerate(boxes):

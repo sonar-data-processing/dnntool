@@ -2,7 +2,6 @@
 import os
 import time
 import rbbox
-import rbbox_util
 import keras
 import argparse
 import cv2

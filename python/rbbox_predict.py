@@ -34,7 +34,6 @@ def _main_(args):
         files = fnmatch.filter(files, '[!flip]*')
         for name in files:
             im_path = os.path.join(root, name)
-            print im_path
             im = cv2.imread(im_path)
             class_id, gt = get_rbbox_annotation(im_path)
 

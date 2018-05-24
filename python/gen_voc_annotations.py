@@ -4,6 +4,7 @@ import argparse
 import json
 import cv2
 import drawing
+import fnmatch
 import numpy as np
 import shutil
 import xml.etree.cElementTree as ET
@@ -23,7 +24,7 @@ def write_voc_annotation(imgfile, filename, class_name, img_folder, img_size, bb
     root = ET.Element("annotation",  verified="yes")
     ET.SubElement(root, "folder").text = img_folder
     ET.SubElement(root, "filename").text = filename
-    ET.SubElement(root, "path").text = imgfile
+    ET.SubElement(root, "c").text = imgfile
 
     source = ET.SubElement(root, "source")
     ET.SubElement(source, "database").text = "Unknown"
@@ -54,54 +55,51 @@ def write_voc_annotation(imgfile, filename, class_name, img_folder, img_size, bb
         text_file.write(prettify(root))
 
 parser = argparse.ArgumentParser(
-    description="Load YOLO Annotations")
+    description="Generate Pascal VOC Annotations")
 
 parser.add_argument(
-    '-c',
-    '--conf',
-    help='path to configuration file')
+    "image_folder",
+    help="Folder containg the image dataset")
+
+parser.add_argument(
+    "voc_annotation_folder",
+    help="Folder containg the image dataset",
+    default="voc")
+
+labels = ["ssiv_bahia", "jequitaia", "balsa"]
 
 def _main_(args):
-    config_path = args.conf
-    with open(config_path) as config_buffer:
-        config = json.loads(config_buffer.read())
+    image_folder = args.image_folder
+    voc_annotation_folder = args.voc_annotation_folder
 
-    output_folder = config["output_folder"]
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
+    if not os.path.exists(voc_annotation_folder):
+        os.makedirs(voc_annotation_folder)
 
-    out_anns = os.path.join(output_folder, "annotations")
-    if not os.path.exists(out_anns):
-        os.makedirs(out_anns)
+    for root, dirs, files in os.walk(image_folder):
+        files = fnmatch.filter(files, '*.png')
+        files = sorted(files)
+        for name in files:
+            img_path = os.path.join(root, name)
+            _, filename = os.path.split(img_path)
 
-    out_imgs = os.path.join(output_folder, "images")
-    if not os.path.exists(out_imgs):
-        os.makedirs(out_imgs)
+            img = cv2.imread(img_path)
+            label_id, gt = get_rbbox_annotation(img_path)
+            box = gt[:4]
 
-    anns = load_bbox_annotations(config["annotations"], 3700)
-    anns = parse_bbox_annotations(anns)
+            write_voc_annotation(
+                img_path,
+                filename,
+                labels[label_id],
+                root,
+                img.shape,
+                box,
+                voc_annotation_folder
+            )
 
-    for ann in anns:
-        _, filename = os.path.split(ann["imgfile"])
-        filename = "{}-{}".format(ann["class_name"], filename)
-        out_img = os.path.join(out_imgs, filename)
-        shutil.copyfile(ann["imgfile"], out_img)
-        img = cv2.imread(ann["imgfile"])
-        print out_img
+            cv2.imshow("voc", img)
 
-        write_voc_annotation(
-            out_img,
-            filename,
-            ann["class_name"],
-            "images",
-            img.shape,
-            ann["bbox"],
-            out_anns)
-
-        drawing.bbox(img, ann["bbox"])
-        cv2.imshow("img", img)
-        if cv2.waitKey(15) & 0xFF == ord('q'):
-            exit()
+            if cv2.waitKey(15) & 0xFF == ord('q'):
+                exit()
 
 if __name__ == '__main__':
     args = parser.parse_args()

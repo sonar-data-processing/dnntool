@@ -1,8 +1,6 @@
 {
-    "output_folder" : "/home/gustavoneves/data/gemini/dataset/voc-format/original",
+    "output_folder" : "/home/gustavoneves/data/gemini/dataset/voc",
     "annotations" : [
-        "/home/gustavoneves/data/gemini/dataset/original/balsa/01_source_bbox_annotations.txt",
-        "/home/gustavoneves/data/gemini/dataset/original/jequitaia/01_source_bbox_annotations.txt",
-        "/home/gustavoneves/data/gemini/dataset/original/ssiv_bahia/01_source_bbox_annotations.txt"
+        "/home/gustavoneves/data/gemini/dataset/test/jequitaia/20161206-1642_001166-002416_gemini"
     ]
 }
