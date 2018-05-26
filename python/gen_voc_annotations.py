@@ -24,7 +24,7 @@ def write_voc_annotation(imgfile, filename, class_name, img_folder, img_size, bb
     root = ET.Element("annotation",  verified="yes")
     ET.SubElement(root, "folder").text = img_folder
     ET.SubElement(root, "filename").text = filename
-    ET.SubElement(root, "c").text = imgfile
+    ET.SubElement(root, "path").text = imgfile
 
     source = ET.SubElement(root, "source")
     ET.SubElement(source, "database").text = "Unknown"
@@ -49,7 +49,7 @@ def write_voc_annotation(imgfile, filename, class_name, img_folder, img_size, bb
     ET.SubElement(bndbox, "ymax").text = str(bbox[3])
 
     base_name = os.path.splitext(filename)[0]
-    out_ann = os.path.join(annotation_folder, base_name+".xml")
+    out_ann = os.path.join(annotation_folder, class_name+"-"+base_name+".xml")
     print out_ann
     with open(out_ann, "w") as text_file:
         text_file.write(prettify(root))
@@ -96,10 +96,10 @@ def _main_(args):
                 voc_annotation_folder
             )
 
-            cv2.imshow("voc", img)
+            # cv2.imshow("voc", img)
 
-            if cv2.waitKey(15) & 0xFF == ord('q'):
-                exit()
+            # if cv2.waitKey(15) & 0xFF == ord('q'):
+            #     exit()
 
 if __name__ == '__main__':
     args = parser.parse_args()

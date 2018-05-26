@@ -1,10 +1,21 @@
 import sys
 import skimage.io as io
 import numpy as np
+import argparse
 import matplotlib.pyplot as plt
 from pycocotools.coco import COCO
 
-coco=COCO('instances.json')
+parser = argparse.ArgumentParser(
+    description="Load COCO results format")
+
+
+parser.add_argument(
+    "annotation_filepath",
+    help="Folder containg the image dataset")
+
+args = parser.parse_args()
+
+coco=COCO(args.annotation_filepath)
 cats = coco.loadCats(coco.getCatIds())
 nms=[cat['name'] for cat in cats]
 print('COCO categories: \n{}\n'.format(' '.join(nms)))
@@ -14,7 +25,7 @@ print('COCO supercategories: \n{}'.format(' '.join(nms)))
 # get all images containing given categories, select one at random
 catIds = coco.getCatIds(catNms=['jequitaia'])
 imgIds = coco.getImgIds(catIds=catIds)
-imgIds = coco.getImgIds(imgIds = [20180000100])
+imgIds = coco.getImgIds(imgIds)
 img = coco.loadImgs(imgIds[np.random.randint(0,len(imgIds))])[0]
 
 # load and display image

@@ -5,12 +5,12 @@ import fnmatch
 import numpy as np
 import csv
 from annotation_utils import *
-# import keras
-# import keras.backend as KB
-# import keras.layers as KL
-# from keras.preprocessing import image
-# from keras.models import Model
-# from keras.utils import Sequence
+import keras
+import keras.backend as KB
+import keras.layers as KL
+from keras.preprocessing import image
+from keras.models import Model
+from keras.utils import Sequence
 
 
 def bbox_rescale(img, target_size):
@@ -91,102 +91,110 @@ def _scale_factor(src_sz, target_sz):
     factor = min(float(target_sz[0])/float(src_sz[0]), float(target_sz[1])/float(src_sz[1]))
     return factor
 
-# class BatchGenerator(Sequence):
-#     def __init__(self, data, target_size=(224, 224), batch_size=32, shuffle=True, use_bbox=False):
-#         self.data = data
-#         self.batch_size = batch_size
-#         self.shuffle = shuffle
-#         self.target_size = target_size
-#         self.use_bbox = use_bbox
+class BatchGenerator(Sequence):
+    def __init__(self, data, target_size=(224, 224), batch_size=32, shuffle=True, use_bbox=False):
+        self.data = data
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+        self.target_size = target_size
+        self.use_bbox = use_bbox
 
-#         if shuffle: np.random.shuffle(self.data)
+        if shuffle: np.random.shuffle(self.data)
 
-#     def __len__(self):
-#         return int(np.ceil(float(len(self.data))/self.batch_size))
+    def __len__(self):
+        return int(np.ceil(float(len(self.data))/self.batch_size))
 
-#     def __getitem__(self, idx):
-#         l_bound = idx*self.batch_size
-#         r_bound = (idx+1)*self.batch_size
+    def __getitem__(self, idx):
+        l_bound = idx*self.batch_size
+        r_bound = (idx+1)*self.batch_size
 
-#         if r_bound > len(self.data):
-#             r_bound = len(self.data)
-#             l_bound = r_bound-self.batch_size
+        if r_bound > len(self.data):
+            r_bound = len(self.data)
+            l_bound = r_bound-self.batch_size
 
-#         target_w, target_h = self.target_size
-#         x_batch = np.zeros((r_bound-l_bound, target_w, target_h, 3))
-#         b_batch = np.zeros((r_bound-l_bound, 5))
-#         y_batch = np.zeros((r_bound-l_bound, 3))
-#         idx = 0
-#         for item in self.data[l_bound:r_bound]:
-#             x, b, y = self.parse_item(item, self.target_size)
-#             x_batch[idx] = x
-#             b_batch[idx] = b
-#             y_batch[idx] = y
-#             idx += 1
-#         return [x_batch, b_batch], y_batch
+        target_w, target_h = self.target_size
+        x_batch = np.zeros((r_bound-l_bound, target_w, target_h, 3))
+        b_batch = np.zeros((r_bound-l_bound, 5))
+        y_batch = np.zeros((r_bound-l_bound, 3))
+        idx = 0
+        for item in self.data[l_bound:r_bound]:
+            x, b, y = self.parse_item(item, self.target_size)
+            x_batch[idx] = x
+            b_batch[idx] = b
+            y_batch[idx] = y
+            idx += 1
+        return [x_batch, b_batch], y_batch
 
-#     def on_epoch_end(self):
-#         if self.shuffle: np.random.shuffle(self.data)
+    def on_epoch_end(self):
+        if self.shuffle: np.random.shuffle(self.data)
 
-#     def __parse_bbox(self, obj):
-#         return np.array([obj['x1'], obj['y1'], obj['x2'], obj['y2']], dtype=np.int32)
+    def __parse_bbox(self, obj):
+        return np.array([obj['x1'], obj['y1'], obj['x2'], obj['y2']], dtype=np.int32)
 
-#     def parse_item(self, item, target_size):
-#         img = cv2.imread(item['img'])
-#         img = img / 255.0
-#         obj = item['obj']
-#         class_id = int(obj['id'])
-#         x1, y1, x2, y2 = self.__parse_bbox(obj)
-#         input_image = None
-#         if (self.use_bbox):
-#             subimg = img[y1:y2,x1:x2]
-#             input_image = bbox_rescale(subimg, target_size)
-#         else:
-#             input_image = bbox_rescale(img, target_size)
+    def parse_item(self, item, target_size):
+        img = cv2.imread(item['img'])
+        img = img / 255.0
+        obj = item['obj']
+        class_id = int(obj['id'])
+        x1, y1, x2, y2 = self.__parse_bbox(obj)
+        input_image = None
+        if (self.use_bbox):
+            subimg = img[y1:y2,x1:x2]
+            input_image = bbox_rescale(subimg, target_size)
+        else:
+            input_image = bbox_rescale(img, target_size)
         
-#         box = np.array([class_id, x1, y1, x2, y2])
-#         y = np.array([obj['w'], obj['h'], obj['t']], dtype=np.float32)
-#         return input_image, box, y
+        box = np.array([class_id, x1, y1, x2, y2])
+        y = np.array([obj['w'], obj['h'], obj['t']], dtype=np.float32)
+        return input_image, box, y
 
-# def get_model_rbbox_regressor(target_size=(224, 224)):
-#     image_shape = target_size+(3,)
-#     image_input = KL.Input(shape=image_shape)
+def get_model_rbbox_regressor(target_size=(224, 224)):
+    image_shape = target_size+(3,)
+    image_input = KL.Input(shape=image_shape)
 
-#     resnet50 = keras.applications.resnet50.ResNet50(include_top=False, weights='imagenet', input_shape=image_shape)
-#     box_input = KL.Input(shape=(5,))
+    resnet50 = keras.applications.resnet50.ResNet50(include_top=False, weights='imagenet', input_shape=image_shape)
+    box_input = KL.Input(shape=(5,))
 
-#     x = KL.Flatten(name='flatten')(resnet50.output)
-#     x = KL.concatenate([x, box_input])
-#     x = KL.Dense(1024, init='normal', activation='relu') (x)
-#     x = KL.Dropout(0.05)(x)
-#     x = KL.Dense(1024, init='normal', activation='relu')(x)
-#     x = KL.Dropout(0.05)(x)
-#     x = KL.Dense(3, init='normal', name='out_bboxes_poses')(x)
+    x = KL.Flatten(name='flatten')(resnet50.output)
+    x = KL.concatenate([x, box_input])
+    x = KL.Dense(1024, init='normal', activation='relu') (x)
+    x = KL.Dropout(0.05)(x)
+    x = KL.Dense(1024, init='normal', activation='relu')(x)
+    x = KL.Dropout(0.05)(x)
+    x = KL.Dense(3, init='normal', name='out_bboxes_poses')(x)
 
-#     model = Model(inputs=[resnet50.input, box_input], output=x)
-#     return model
+    model = Model(inputs=[resnet50.input, box_input], output=x)
+    return model
 
-# def predict(img, class_id, box, model, target_size=(224, 224), use_bbox=False):
-#     x1, y1, x2, y2 = np.array(box, dtype=np.int32)
-#     img = img / 255.0
+def predict(img, class_id, box, model, target_size=(224, 224), use_bbox=False):
+    x1, y1, x2, y2 = np.array(box, dtype=np.int32)
 
-#     if use_bbox:
-#         subimg = img[y1:y2,x1:x2]
-#         input_image = prepare_input(subimg, target_size)
-#     else:
-#         input_image = prepare_input(img, target_size)
+    if x1 < 0: x1 = 0
+    if x2 >= img.shape[1]: x2=img.shape[1]-1
+    if y1 < 0: y1 = 0
+    if y2 >= img.shape[1]: y2=img.shape[1]-1
 
-#     input_box = np.array([class_id, x1, y1, x2, y2], dtype=np.int32)
-#     input_box = np.expand_dims(input_box, axis=0)
+    img = img / 255.0
 
-#     preds = model.predict([input_image, input_box])[0]
-#     w, h = x2-x1, y2-y1
+    if use_bbox:
+        subimg = img[y1:y2,x1:x2]
+        input_image = prepare_input(subimg, target_size)
+    else:
+        input_image = prepare_input(img, target_size)
 
-#     angle = preds[2]
-#     if class_id == 1 and h < w/4 and angle >= 5 and angle <= 175:
-#         preds[2] = 0
+    input_box = np.array([class_id, x1, y1, x2, y2], dtype=np.int32)
+    input_box = np.expand_dims(input_box, axis=0)
 
-#     return transform(preds, (x1, y1), (w, h), target_size)
+    preds = model.predict([input_image, input_box])[0]
+    w, h = x2-x1, y2-y1
+
+    angle = preds[2]
+    if class_id == 1 and h < w/4 and angle >= 5 and angle <= 175:
+        preds[2] = 0
+
+    print "angle: {}".format(angle)
+
+    return transform(preds, (x1, y1), (w, h), target_size)
 
 def predict_rbboxes(model, boxes, img, target_size, use_bbox=False):
     img_h, img_w, _ = img.shape

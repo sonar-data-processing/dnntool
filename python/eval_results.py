@@ -52,7 +52,7 @@ def _precision_recall(gt, res, iou, score):
     y_score = score
 
     for i in range(N):
-        if gt[i] == res[i] and iou[i] >= 0.5:
+        if gt[i] == res[i] and iou[i] >= 0.85:
             y_true[i] = 1
 
     ap = average_precision_score(y_true, y_score)
@@ -61,7 +61,7 @@ def _precision_recall(gt, res, iou, score):
 
     return precision, recall, ap
 
-def _plot_precision_recall(gt, res, iou, score):
+def plot_precision_recall(gt, res, iou, score):
     precision, recall, ap = _precision_recall(gt, res, iou, score)
     plt.figure()
     plt.step(recall, precision, color='b', alpha=0.2, where='post')
@@ -72,7 +72,7 @@ def _plot_precision_recall(gt, res, iou, score):
     plt.xlim([0.0, 1.0])
     plt.title('Precision-Recall curve: AP={0:0.5f}'.format(ap))
 
-def _plot_average_recall(gt, res, iou):
+def plot_average_recall(gt, res, iou):
     overlap, recall, AR = _average_recall(gt, res, iou)
     plt.figure()
     plt.step(overlap, recall, color='b', alpha=0.2, where='post')
@@ -86,8 +86,8 @@ def _plot_average_recall(gt, res, iou):
 
 def _main_(args):
     gt, res, iou, score = _load_results(args.csv_filepath)
-    _plot_precision_recall(gt, res, iou, score)
-    _plot_average_recall(gt, res, iou)
+    plot_precision_recall(gt, res, iou, score)
+    plot_average_recall(gt, res, iou)
     plt.show()
 
 if __name__ == '__main__':

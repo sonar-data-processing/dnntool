@@ -176,5 +176,5 @@ def parseXmlFiles(xml_path):
 if __name__ == '__main__':
     xml_path = 'Annotations'
     json_file = 'instances.json'
-    parseXmlFiles('/home/gustavoneves/data/gemini/dataset/voc')
+    parseXmlFiles('/home/gustavoneves/data/gemini/dataset/test/jequitaia/20161206-1642_001166-002416_gemini/voc')
     json.dump(coco, open(json_file, 'w'))

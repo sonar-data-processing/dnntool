@@ -81,56 +81,73 @@ def addAnnoItem(object_name, image_id, category_id, bbox, rbbox):
     annotation_item['id'] = annotation_id
     coco['annotations'].append(annotation_item)
 
-def _main(path):
+def load_coco_annotations(files):
+    for img_path in files:
+        size = dict()
+        size['width'] = None
+        size['height'] = None
+        size['depth'] = None
 
+        current_image_id = None
+        current_category_id = None
+        file_name = None
+        coco_url = None
+        object_name = None
+
+        img = cv2.imread(img_path)
+        label_id, gt = get_rbbox_annotation(img_path)
+        _, file_name = os.path.split(img_path)
+        coco_url = img_path
+        object_name = labels[label_id]
+        size['height'], size['width'], size['depth'] = img.shape
+
+        if object_name not in category_set:
+            current_category_id = addCatItem(object_name)
+        else:
+            current_category_id = category_set[object_name]
+
+        current_image_id = addImgItem(file_name, coco_url, size)
+        print('add image with {} and {}'.format(file_name, size))
+
+        gt2 = gt.astype(int)
+        bbox = []
+        bbox.append(gt2[0])
+        bbox.append(gt2[1])
+        bbox.append(gt2[2]-gt2[0])
+        bbox.append(gt2[3]-gt2[1])
+
+        rbbox = gt[4:]
+        rbbox[0:2] += bbox[0:2]
+        rbbox = rbox2points(rbbox).astype(int)
+
+        print('add annotation with {},{},{},{}.{}'.format(object_name, current_image_id, current_category_id, bbox, rbbox))
+        addAnnoItem(object_name, current_image_id, current_category_id, bbox, rbbox)
+
+def _main(path):
+    global coco
+    paths = []
     for root, dirs, files in os.walk(path):
         files = fnmatch.filter(files, '*.png')
         files = sorted(files)
         for name in files:
-            
-            size = dict()
-            size['width'] = None
-            size['height'] = None
-            size['depth'] = None
+            paths.append(os.path.join(root, name))
 
-            current_image_id = None
-            current_category_id = None
-            file_name = None
-            coco_url = None
-            object_name = None
+    np.random.shuffle(paths)
+    train_valid_split = int(0.8*len(paths))
+    valid_files = paths[train_valid_split:]
+    train_files = paths[:train_valid_split]
 
-            img_path = os.path.join(root, name)
-            img = cv2.imread(img_path)
-            label_id, gt = get_rbbox_annotation(img_path)
-            _, file_name = os.path.split(img_path)
-            coco_url = img_path
-            object_name = labels[label_id]
-            size['height'], size['width'], size['depth'] = img.shape
+    load_coco_annotations(train_files)
+    json.dump(coco, open('train_instances.json', 'w'))
 
-            if object_name not in category_set:
-                current_category_id = addCatItem(object_name)
-            else:
-                current_category_id = category_set[object_name]
+    coco = dict()
+    coco['images'] = []
+    coco['type'] = 'instances'
+    coco['annotations'] = []
+    coco['categories'] = []
 
-            current_image_id = addImgItem(file_name, coco_url, size)
-            print('add image with {} and {}'.format(file_name, size))
-
-            gt2 = gt.astype(int)
-            bbox = []
-            bbox.append(gt2[0])
-            bbox.append(gt2[1])
-            bbox.append(gt2[2]-gt2[0])
-            bbox.append(gt2[3]-gt2[1])
-
-            rbbox = gt[4:]
-            rbbox[0:2] += bbox[0:2]
-            rbbox = rbox2points(rbbox).astype(int)
-
-            print('add annotation with {},{},{},{}.{}'.format(object_name, current_image_id, current_category_id, bbox, rbbox))
-            addAnnoItem(object_name, current_image_id, current_category_id, bbox, rbbox)
+    load_coco_annotations(valid_files)
+    json.dump(coco, open('valid_instances.json', 'w'))
 
 if __name__ == '__main__':
-    xml_path = 'Annotations'
-    json_file = 'instances.json'
-    _main('/home/gustavoneves/data/gemini/dataset/test/jequitaia/20161206-1642_001166-002416_gemini')
-    json.dump(coco, open(json_file, 'w'))
+    _main('/home/gustavoneves/data/gemini/dataset/train/')
