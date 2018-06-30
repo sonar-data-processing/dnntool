@@ -18,6 +18,22 @@ def bbox(im, bbox, color=(255, 0, 0)):
     x2 = bbox[2]
     y2 = bbox[3]
     cv2.rectangle(im, (x1, y1), (x2, y2), color, 5)
+
+def bbox(image, box, label, score):
+    image_h, _, _ = image.shape
+    xmin = int(box[0])
+    ymin = int(box[1])
+    xmax = int(box[2])
+    ymax = int(box[3])
+
+    cv2.rectangle(image, (xmin,ymin), (xmax,ymax), (0,255,0), 3)
+    cv2.putText(image,
+                label + ' ' + str(score),
+                (xmin, ymin - 13),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1e-3 * image_h,
+                (0,255,0), 2)
+
 def rbox(img, rb, color=(255, 0, 0)):
     points(img, au.rbox2points(rb), color)
     

@@ -236,7 +236,21 @@ def load_result(filepath):
             ids += [int(row[0])]
             boxes += [np.array(row[1:5], dtype=np.float32)]
             rboxes += [np.array(row[5:10], dtype=np.float32)]
-            scores += [float(row[10])]      
+            scores += [float(row[10])]
     return ids, boxes, rboxes, scores
 
-    
+def save_detection_result(result_file, img_path, labels, boxes, rboxes, scores):
+    lines = []
+    for idx, l in enumerate(labels):
+        b = boxes[idx]
+        rb = rboxes[idx]
+        line = "{},{},{},{},{},{},{},{},{},{},{},{}\n".format(
+            img_path,
+            l,
+            b[0], b[1], b[2], b[3],
+            rb[0], rb[1], rb[2], rb[3], rb[4],
+            scores[idx])
+        lines.append(line)
+    file = open(result_file, 'a')
+    file.writelines(lines)
+    file.close

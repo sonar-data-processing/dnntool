@@ -114,7 +114,12 @@ def parseXmlFiles(xml_path):
             if elem.tag == 'filename':
                 file_name = elem.text
                 if file_name in category_set:
-                    raise Exception('file_name duplicated')
+                    raise Exception('file_name duplicated')                if file_name not in image_set:
+                    current_image_id = addImgItem(file_name, coco_url, size)
+                    print('add image with {} and {}'.format(file_name, size))
+                else:
+                    raise Exception('duplicated image: {}'.format(file_name)) 
+
             
             if elem.tag == 'path':
                 coco_url = elem.text

@@ -20,7 +20,7 @@ parser.add_argument(
 args = parser.parse_args()
 
 annType = ['segm','bbox','keypoints']
-annType = annType[1]
+annType = annType[0]
 
 cocoGt=COCO(args.annotation_filepath)
 cocoDt=cocoGt.loadRes(args.result_filepath)

@@ -26,7 +26,7 @@ parser.add_argument(
     choices=list(['yolo', 'faster_rcnn']),
     help="Detector")
 
-yolo_labels = ["ssiv_bahia", "jequitaia", "balsa"]
+LABELS = ["ssiv_bahia", "jequitaia", "balsa"]
 
 def _get_suffix(detector):
     return "{}-result-resnet50".format(detector)
@@ -48,9 +48,6 @@ def _create_rbbox_mask(size, rbbox):
 def _main_(args):
     coco=COCO(args.annotation_filepath)
 
-    # catIds = coco.getCatIds(catNms=['ssiv_bahia'])
-    # catIds = coco.getCatIds()
-    # imgIds = coco.getImgIds(catIds=catIds)
     imgIds = coco.getImgIds()
     imgIds = sorted(imgIds)
     imgs = coco.loadImgs(imgIds)
@@ -62,15 +59,22 @@ def _main_(args):
     cnt = 0
     for img in imgs:
         img_path = img['coco_url']
+        if not os.path.isfile(img_path):
+            continue
+
         I = cv2.imread(img_path)
         h, w, _ = I.shape
 
         gt_id, gt_box, gt_rbox = _get_ground_truth(img_path)
 
         result_path = rbbox.get_result_filename(img_path, suffix='-'+suffix)
+
+        if not os.path.isfile(result_path):
+            continue
+
         ids, boxes, rboxes, scores = rbbox.load_result(result_path)
 
-        labels = [yolo_labels[id] for id in ids]
+        labels = [LABELS[id] for id in ids]
 
         drawing.boxes(I, boxes, labels, scores)
         drawing.rboxes(I, rboxes)

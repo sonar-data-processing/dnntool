@@ -99,3 +99,10 @@ def parse_bbox_annotations(anns):
         e["bbox"] = ann[1:5].astype(float)
         elems += [e]
     return np.array(elems)
+
+def get_ground_truth(img_path):
+    gt_id, gt = get_rbbox_annotation(img_path)
+    gt_box = gt[:4]
+    gt_rbox = gt[4:]
+    gt_rbox[0:2] += gt_box[0:2]
+    return gt_id, gt_box, gt_rbox
